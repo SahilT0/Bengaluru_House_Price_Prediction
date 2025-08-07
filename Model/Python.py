@@ -1,5 +1,6 @@
 import pandas as pd
 import numpy as np
+import matplotlib
 from matplotlib import pyplot as plt
 
 # For full view in pycharm
@@ -57,5 +58,104 @@ def convert_sqft_into_num(x):
 copyData2['total_sqft'] = copyData2['total_sqft'].apply(convert_sqft_into_num)
 print(copyData2.head(10))
 
+# Adding new col
+copyData2['price_per_sqft'] = copyData2['price'] * 100000 / copyData2['total_sqft']
+print(copyData2.head())
+
+print(len(copyData2['location'].unique()))
+
+copyData2['location'] = copyData2['location'].apply(lambda x : x.strip())
+loc = copyData2.groupby('location')['location'].agg('count').sort_values(ascending = False)
+print(loc)
+
+print(len(loc[loc <= 10]))
+print(loc[loc <= 10])
+
+locLessThan10 = loc[loc <= 10]
+copyData2['location'] = copyData2['location'].apply(lambda x: 'other' if x in locLessThan10 else x)
+print(len(copyData2['location'].unique()))
+
+# Outlier removal
+print(copyData2[copyData2['total_sqft']/copyData2['bhk'] < 300].head())
+
+print(copyData2.shape)
+
+copyData2 = copyData2[~(copyData2['total_sqft']/copyData2['bhk'] < 300)]
+print(copyData2.shape)
+
+print(copyData2['price_per_sqft'].describe())
+
+def remove_pps_outliers(df):
+    df_out = pd.DataFrame()
+    for key , subdf in df.groupby('location'):
+        m = np.mean(subdf.price_per_sqft)
+        st = np.std(subdf.price_per_sqft)
+        reduced_df = subdf[(subdf.price_per_sqft>(m-st)) & (subdf.price_per_sqft<= (m+st))]
+        df_out = pd.concat([df_out,reduced_df], ignore_index = True)
+    return df_out
+
+copyData2 = remove_pps_outliers(copyData2)
+print(copyData2.shape)
+
+print(copyData2.head())
 
 
+def plot_scatter_chart(df, location):
+    bhk2 = df[(df.location == location) & (df.bhk == 2)]
+    bhk3 = df[(df.location == location) & (df.bhk == 3)]
+    matplotlib.rcParams['figure.figsize'] = (15, 10)
+    plt.scatter(bhk2.total_sqft, bhk2.price, color = 'blue', label = '2 BHK', s = 50)
+    plt.scatter(bhk3.total_sqft, bhk3.price, color = 'green', marker = "+", label = '3 BHK', s = 50)
+    plt.xlabel("Total Square Feet Area")
+    plt.ylabel("Price per Square Feet")
+    plt.title(location)
+    plt.legend()
+
+plot_scatter_chart(copyData2,'Hebbal')
+
+
+def remove_bhk_outliers(df):
+    exclude_indices = np.array([])
+    for location, location_df in df.groupby('location'):
+        bhk_stats = {}
+        for bhk, bhk_df in location_df.groupby('bhk'):
+            bhk_stats[bhk] = {
+                'mean' : np.mean(bhk_df.price_per_sqft),
+                'std' : np.std(bhk_df.price_per_sqft),
+                'count' : bhk_df.shape[0]
+            }
+        for bhk, bhk_df, in location_df.groupby('bhk'):
+            stats = bhk_stats.get(bhk - 1)
+            if stats and stats['count'] > 5:
+                exclude_indices = np.append(exclude_indices, bhk_df[bhk_df.price_per_sqft < (stats['mean'])].index.values)
+    return df.drop(exclude_indices, axis = 'index')
+
+copyData3 = remove_bhk_outliers(copyData2)
+print(copyData3.shape)
+
+plot_scatter_chart(copyData3, 'Hebbal')
+
+
+matplotlib.rcParams["figure.figsize"] = (20, 10)
+plt.hist(copyData3.price_per_sqft, rwidth = 0.8)
+plt.xlabel("Price Per Square Feet")
+plt.ylabel("Count")
+plt.show()
+
+
+print(copyData3[copyData3['bath'] > 10].head())
+
+copyData3 = copyData3[~(copyData3['bath'] > 10)]
+print(copyData3.shape)
+
+
+plt.hist(copyData3.bath, rwidth = 0.8)
+plt.xlabel("Numbers of bathrooms")
+plt.ylabel("Count")
+plt.show()
+
+
+print(copyData3[copyData3['bath'] > copyData3['bhk']+2])
+
+copyData3 = copyData3[copyData3['bath'] < copyData3['bhk'] + 2]
+print(copyData3.shape)
