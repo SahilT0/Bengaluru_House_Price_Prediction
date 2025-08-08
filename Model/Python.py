@@ -2,6 +2,13 @@ import pandas as pd
 import numpy as np
 import matplotlib
 from matplotlib import pyplot as plt
+from sklearn.model_selection import train_test_split
+from sklearn.linear_model import LinearRegression
+from sklearn.model_selection import ShuffleSplit
+from sklearn.model_selection import cross_val_score
+from sklearn.model_selection import GridSearchCV
+from sklearn.linear_model import Lasso
+from sklearn.tree import DecisionTreeRegressor
 
 # For full view in pycharm
 pd.set_option("display.max_columns",None)
@@ -159,3 +166,106 @@ print(copyData3[copyData3['bath'] > copyData3['bhk']+2])
 
 copyData3 = copyData3[copyData3['bath'] < copyData3['bhk'] + 2]
 print(copyData3.shape)
+
+
+copyData3 = copyData3.drop(['size', 'price_per_sqft'], axis='columns')
+print(copyData3.head())
+
+Dummies = pd.get_dummies(copyData3['location'])
+print(Dummies.head())
+
+Dummies = Dummies.drop('other', axis='columns')
+
+copyData3 = copyData3.drop('location', axis='columns')
+
+finalData = pd.concat([copyData3, Dummies], axis='columns')
+print(finalData.head())
+
+finalData = finalData.astype(int)
+print(finalData.head())
+
+print(finalData.shape)
+
+x = finalData.drop('price', axis = 'columns')
+print(x.head())
+print(x.shape)
+
+y = finalData['price']
+print(y.head())
+
+x_train, x_test, y_train, y_test = train_test_split(x, y, test_size = 0.25, random_state = 10)
+
+lr_clf = LinearRegression()
+lr_clf.fit(x_train, y_train)
+
+print(lr_clf.score(x_test, y_test))
+
+print(lr_clf.score(x_train, y_train))
+
+
+cv = ShuffleSplit(n_splits = 5, test_size = 0.25, random_state = 0)
+print(cross_val_score(LinearRegression(), x, y, cv = cv))
+
+def find_best_model_using_gridsearchcv(x, y):
+    algos = {
+        'linear_regression' : {
+            'model' : LinearRegression(),
+            'params' : {
+                'fit_intercept' : [True, False],
+                'positive' : [True, False]
+            }
+        },
+        'lasso' : {
+            'model' : Lasso(),
+            'params' : {
+                'alpha' : [1, 2],
+                'selection' :['random', 'cyclic']
+            }
+        },
+        'decision_tree' : {
+            'model' : DecisionTreeRegressor(),
+            'params' : {
+                'criterion' : ['squared_error' , 'friedman_mse'],
+                'splitter' : ['best' , 'random']
+            }
+        }
+    }
+    scores = []
+    cv = ShuffleSplit(n_splits=5, test_size=0.25, random_state=0)
+    for algo_name, config in algos.items():
+        gs = GridSearchCV(config['model'], config['params'], cv=cv, return_train_score=False)
+        gs.fit(x, y)
+        scores.append({
+            'model' : algo_name,
+            'best_score' : gs.best_score_,
+            'best_params' : gs.best_params_
+        })
+    return pd.DataFrame(scores, columns=['model', 'best_score', 'best_params'])
+
+print(find_best_model_using_gridsearchcv(x, y))
+
+
+def predict_price(location, sqft, bath, bhk):
+    # Start with a zero array for input
+    x1 = np.zeros(len(x.columns))
+
+    # Assign numerical features
+    x1[0] = sqft
+    x1[1] = bath
+    x1[2] = bhk
+
+    # Handle location column dynamically
+    if location in x.columns:
+        loc_index = x.columns.get_loc(location)
+        x1[loc_index] = 1
+
+    # Predict and make sure the price is not negative
+    predicted_price = lr_clf.predict([x1])[0]
+    return round(max(predicted_price, 0), 2)
+
+
+print(predict_price('Indira Nagar', 1000, 2, 2))
+
+print(predict_price('1st Phase JP Nagar',1000, 3, 3))
+
+print(predict_price('1st Phase JP Nagar',1000, 3, 4))
