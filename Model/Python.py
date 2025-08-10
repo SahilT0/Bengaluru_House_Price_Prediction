@@ -269,3 +269,17 @@ print(predict_price('Indira Nagar', 1000, 2, 2))
 print(predict_price('1st Phase JP Nagar',1000, 3, 3))
 
 print(predict_price('1st Phase JP Nagar',1000, 3, 4))
+
+
+# Extracting model in a pickle file
+import pickle
+with open('banglore_home_prices_model.pickle', 'wb') as f:
+    pickle.dump(lr_clf, f)
+
+# Extracting locations into json file
+import json
+columns = {
+    'data_columns' : [col.lower() for col in x.columns]
+}
+with open('columns.json', 'w') as f:
+    f.write(json.dumps(columns))
